@@ -1,13 +1,15 @@
-#include<Wire.h>  // I2C Libary
+// Add the Libarys Needed
+#include <Wire.h>  // I2C Libary
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BMP280.h>
 #include <Servo.h>
 
+//declare Global Libarys
 float Start_Altedude = 38.00;
 double AltDelta;
 double Relative_Start_Altedude;
 
-//Mission Parameteres
+//Mission parameteres
 boolean Landed;
 boolean Lanched;
 
@@ -45,10 +47,11 @@ float MPU_6050_GyroZ;
 // BMP280
 Adafruit_BMP280 bme;
 
+//---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-
+//Intital routine
 void setup(){
-  // Test Switch
+  // Declare digital pin as Testing Switch
   pinMode(12, INPUT);
 
   // DC Motor
@@ -68,6 +71,7 @@ void setup(){
   Landed = false;
   Lanched = false;
 
+// Set up MPU-6050
   Wire.begin();
   Wire.beginTransmission(MPU_6050_Addr);
   Wire.write(PWR_MGMT_1);
@@ -80,46 +84,55 @@ void setup(){
   Wire.write(0x08);  //setting the full scale range to plus minus 8g
   Wire.endTransmission();
 
+// Set up BMP280
   bme.begin();
+
+// Start Serial Port comunication
   Serial.begin(9600);
 
+//Print Table Header of output comunication
   Serial.println("Timestamp_ MPU-6050_Acc_X; MPU-6050_Acc_Y; MPU-6050_Acc_Z; MPU-6050_Gyro_X; MPU-6050_Gyro_Y; MPU-6050_Gyro_Z; MPU-6050_Temp; BMP280_Temp; BMP280_Pres; BMP280_Alt; LM35DZ_Temp; Mission_Notes");
-  Serial.print(millis()); Serial.println(";;;;;;;;;;;; Start of CanSat mission!");
+  Serial.print(millis()); Serial.println(";;;;;;;;;;;; Start of CanSat mission!"); 
+  
+// Execute "PreStartCalibrations" Function
   AltDelta = PreStartCalibration(Start_Altedude);
+
+// Execute "PreStartCalibrations" Function
   Relative_Start_Altedude = PreStartRelativeAlt();
 }
 
-//------------------------------------------------------------------------------------------------------
-
+//---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Run main routine
 void loop() {
-  Measument();
-  if (Lanched == true){
-      if (Landed == false){
-      Landed = LandedTest(AltDelta);
+
+  Measument();                          // Preforme Measument
+  if (Lanched == true){                 // Check if CanSat was Lanched
+      if (Landed == false){             // Check If CanSat has Landed
+      Landed = LandedTest(AltDelta);    // If not rund landet test
     }
-    else if (Landed == true){
+    else if (Landed == true){           // If Landet switch to rover mode
       RoverMode(); 
-      delay(500);
     }
   }
-  else if (Lanched == false){
+  else if (Lanched == false){           // if not landed check if Cansat has landet
     LaunchCheck();
   }
 
-  delay(500);
+  delay(500);                           // Pause the loop by 0.5s
 
 
 }
 
-//------------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Function when the CanSat is in rover mode
 int RoverMode(){
-  if (Latch_Closed == true){
-    myservo.write(170);
+  if (Latch_Closed == true){          // Check is latch was closed
+    myservo.write(170);               // Open the latch
     delay(500);
     Latch_Closed = false;
     Serial.print(millis()); Serial.println(";;;;;;;;;;;; Parachute was deattached");
   }
-  else {
+  else {                              // If latche was open then close and open the latch
     myservo.write(10);
     delay(500);
     myservo.write(170);
@@ -128,7 +141,7 @@ int RoverMode(){
     Serial.print(millis()); Serial.println(";;;;;;;;;;;; Parachute was still attached, deattached now");
   }
 
-  for (int i = 0; i<= 1; i++){
+  for (int i = 0; i<= 1; i++){        // The CanSat drives around with a certain routine
     Serial.print(millis()); Serial.println(";;;;;;;;;;;; Ground Mission Started: Rover Driving");
     digitalWrite(LeftDC, HIGH);
     digitalWrite(RightDC, HIGH);
@@ -171,40 +184,45 @@ int RoverMode(){
 }
 
 
-//------------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Finction to check if CanSat has landed
 int LandedTest(double AltDelta){
   
-  boolean Quick_Test = false;
-  double PreasureList[10];
-  double sum = 0;
-  double mean;
-  double QIt = 10;
-  double Qsteps = 100;
+  // Initiate local variables
+  boolean Quick_Test = false;     // Variabel to indicate passed Quick Test
+  double AltList[10];             // Array of Altitude measuments
+  double sum = 0;                 // Variable that summes the presures array
+  double mean;                    // Variable for mean preaure
+  double QIt = 10;                // Quantity of measesuments
+  double Qsteps = 100;            // time of steps in ms
 
   Serial.print(millis()); Serial.println(";;;;;;;;;;;; Quick altitude check");
 
-  for (int j = 0; j <= (QIt - 1); j++){
-    PreasureList[j] = bme.readAltitude(1013.25);
-    sum += PreasureList[j];
+  for (int j = 0; j <= (QIt - 1); j++){           //Loop for quick measument to check if CanSat has landed
+    AltList[j] = bme.readAltitude(1013.25);
+    sum += AltList[j];
     delay(100);
   }
-  mean = sum / QIt;
+  mean = sum / QIt;                               // Find the mean value
 
-  mean = mean + AltDelta;
+  mean = mean + AltDelta;                         // Subtract the Difference found in the calibration
 
-  int minValue = PreasureList[0];
-  int maxValue = PreasureList[0];
+  // Creat Variable for min and Max value
+  int minValue = AltList[0];                 
+  int maxValue = AltList[0];
 
-  // Find the minimum and maximum values
+  // Find the minimum and maximum altitude values
   for (int i = 1; i < (QIt - 1); ++i) {
-    if (PreasureList[i] < minValue) {
-      minValue = PreasureList[i];
-    } else if (PreasureList[i] > maxValue) {
-      maxValue = PreasureList[i];
+    if (AltList[i] < minValue) {
+      minValue = AltList[i];
+    } else if (AltList[i] > maxValue) {
+      maxValue = AltList[i];
     }
   }
+  // Find the Decending speed
   double Speed = (maxValue - minValue)/(QIt*(Qsteps/1000));
 
+  // Check if the Conditions are fulfilt to be considered landed
   if ((mean > 40) || (Speed > 0.5)) {
     Serial.print(millis()); Serial.print(";;;;;;;;;;;; Flighing: Altitud: "); Serial.print(mean); Serial.print(", Speed - "); Serial.println(Speed);
     Quick_Test = false;
@@ -215,32 +233,33 @@ int LandedTest(double AltDelta){
   }
 
 
-  if (Quick_Test == true){
-    double S_PreasureList[10];
+  if (Quick_Test == true){        // If the Quick test past run long Savty test
+    double S_AltList[10];         // Create local variables and Array for Long test
     double S_sum = 0;
 
     Serial.print(millis()); Serial.println(";;;;;;;;;;;; Perform long safty test (1 min) measument");
-    for (int n = 0; n <= 9; n++){
-      S_PreasureList[n] = bme.readAltitude(1013.25);
-      S_sum += S_PreasureList[n];
+    for (int n = 0; n <= 9; n++){     //Loop for long measument
+      S_AltList[n] = bme.readAltitude(1013.25);
+      S_sum += S_AltList[n];
       delay(6000);
     }
-    double S_mean = S_sum / 10;
-    S_mean = S_mean + AltDelta;
+    double S_mean = S_sum / 10;     // Find mean Altitude
+    S_mean = S_mean + AltDelta;     // substract the delta
 
-    double S_minValue = S_PreasureList[0];
-    double S_maxValue = S_PreasureList[0];
+    double S_minValue = S_AltList[0];   // Create min and max variables
+    double S_maxValue = S_AltList[0];
     // Find the minimum and maximum values
-    for (int m = 1; m < 9; ++m) {
-      if (S_PreasureList[m] < S_minValue) {
-        S_minValue = S_PreasureList[m];
-      } else if (S_PreasureList[m] > maxValue) {
-        S_maxValue = S_PreasureList[m];
+    for (int m = 1; m < 9; ++m) {     // find min and max altitude
+      if (S_AltList[m] < S_minValue) {
+        S_minValue = S_AltList[m];
+      } else if (S_AltList[m] > maxValue) {
+        S_maxValue = S_AltList[m];
       }
     }
+    // Find speed
     double S_Speed = (S_maxValue - S_minValue)/60;
   
-    if ((S_mean > 40) && (S_Speed > 0.5)) {
+    if ((S_mean > 40) && (S_Speed > 0.5)) {   // check if Cansat has landed
       Serial.print(millis()); Serial.println(";;;;;;;;;;;; Safety test Failed, CanSat Flighing!");
       Landed = false;
     }
@@ -264,7 +283,10 @@ int LandedTest(double AltDelta){
   
   return Landed;
 }
-//------------------------------------------------------------------------------------------------------
+
+
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Function to measure all variables and return them
 int Measument(){
     // put your main code here, to run repeatedly:
   Wire.beginTransmission(MPU_6050_Addr);
@@ -307,8 +329,9 @@ int Measument(){
   //Serial.print("External Temp.        - "); Serial.print(tempSensorValue,1); Serial.println(" [degrees C]");
 }
 
-//------------------------------------------------------------------------------------------------------
 
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Function to preform pre flight calibrations
 double PreStartCalibration (double StartAlt) {
 
   Serial.print(millis()); Serial.println(";;;;;;;;;;;; Preform prestart calibration");
@@ -329,8 +352,9 @@ double PreStartCalibration (double StartAlt) {
   return DeltaAltetude;
 }
 
-//------------------------------------------------------------------------------------------------------
 
+//------------------------------------------------------------------------------------------------------
+// Funktion to find Altitude Delta
 double PreStartRelativeAlt () {
     double AltSum = 0;
 
@@ -347,8 +371,9 @@ double PreStartRelativeAlt () {
   return AltMean;
 }
 
-//------------------------------------------------------------------------------------------------------
 
+//------------------------------------------------------------------------------------------------------
+// Function to check if the CanSat has been lunched
 double LaunchCheck() {
 
   double AltDiff = bme.readAltitude(1013.25) - Relative_Start_Altedude;

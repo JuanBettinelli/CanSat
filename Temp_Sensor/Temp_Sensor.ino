@@ -1,4 +1,4 @@
-const int analogInPin = A0; // analog input pin
+const int analogInPin = A1; // analog input pin
 float tempSensorValue = 0; // Temperature sensor data
 int green = 2;
 int yellow = 3;
